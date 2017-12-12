@@ -1,0 +1,98 @@
+<?php
+
+define('EVENTBRITE_URL', 'https://www.eventbriteapi.com/v3/events/search/?token=');
+
+function eventbrite_menu() {
+  $items['admin/config/eventbrite'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('eventbrite_form'),
+    'access arguments' => array('access content'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['eventbrite'] = array(
+    'page callback' => 'eventbrite_api_ui',
+    'access arguments' => array('access content'),
+  );
+  return $items;
+}
+
+/**
+ * Page callback: Current posts settings
+ *
+ * @see current_posts_menu()
+ */
+function eventbrite_form($form, &$form_state) {
+  $form['eventbrite_token'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Token'),
+    '#default_value' => variable_get('eventbrite_token'),
+    '#size' => 20,
+    '#maxlength' => 20,
+    '#required' => TRUE,
+  );
+  $form['eventbrite_org_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Organiser Id'),
+    '#default_value' => variable_get('eventbrite_org_id'),
+    '#size' => 20,
+    '#maxlength' => 20,
+    '#required' => TRUE,
+  );
+
+  return system_settings_form($form);
+}
+
+function eventbrite_api_ui() {
+  drupal_add_css('https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css', 'external');
+  drupal_add_js('https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js', 'external');
+  drupal_add_js('https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js', 'external');
+
+  $token = variable_get('eventbrite_token');
+  $organizer = variable_get('eventbrite_org_id');
+
+  $curl = curl_init();
+  curl_setopt_array($curl, array(
+    CURLOPT_URL => EVENTBRITE_URL.$token."&organizer.id=".$organizer."&expand=venue",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_ENCODING => "",
+    CURLOPT_MAXREDIRS => 10,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+    CURLOPT_CUSTOMREQUEST => "GET",
+    CURLOPT_HTTPHEADER => array(
+      "cache-control: no-cache",
+    ),
+  ));
+
+  $response = curl_exec($curl);
+  $err = curl_error($curl);
+  curl_close($curl);
+
+  if ($err) {
+    echo "cURL Error #:" . $err;
+  }
+  else {
+    $json = json_decode($response, true);
+    //print_r($json);
+    $length = $json['pagination']['object_count'];
+    //print_r($length);die();
+    $html = '<div class="container m-t-md"><br><h2 style="margin-left: 40%;">Upcoming Events!</h2><br><br><div class="row">';
+    for($i=0; $i < $length; $i++) {
+      $event = $json['events'][$i];
+      //print_r($event);die();
+      $html .= '<div class="col-xs-12 col-md-4">';
+      $html .= '<article class="card animated fadeInLeft">';
+      $html .= '<img class="card-img-top img-responsive" src="'. $event['logo']['url'] .'" alt="Deer in nature" />';
+      $html .= '<div class="card-block">';
+      $html .= '<h4 class="card-title">'. $event['name']['text'] .'</h4>';
+      $html .= '<h6 class="text-muted">' . $event['venue']['address']['address_1'] .' '.$event['venue']['address']['city'].'</h6>';
+      $date = explode("T",$event['start']['local']);
+      $html .= '<h6 class="text-muted">Date: ' . $date[0] .'</h6>';
+      $html .= '<p class="card-text">'. $event['description']['text'] .'</p>';
+      $html .= '<a href="'. $event['url'] .'" class="btn btn-primary"> Read more </a>';
+      $html .= '</div></article></div>';
+    }
+    $html .= '</div></div>';
+    print $html;
+  }
+}
