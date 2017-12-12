@@ -43,13 +43,13 @@ function eventbrite_form($form, &$form_state) {
 }
 
 function eventbrite_api_ui() {
-  drupal_add_css('https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css', 'external');
-  drupal_add_js('https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js', 'external');
-  drupal_add_js('https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js', 'external');
+//  drupal_add_css('https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css', 'external');
+//  drupal_add_js('https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js', 'external');
+//  drupal_add_js('https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js', 'external');
 
   $token = variable_get('eventbrite_token');
   $organizer = variable_get('eventbrite_org_id');
-
+  
   $curl = curl_init();
   curl_setopt_array($curl, array(
     CURLOPT_URL => EVENTBRITE_URL.$token."&organizer.id=".$organizer."&expand=venue",
@@ -67,32 +67,99 @@ function eventbrite_api_ui() {
   $response = curl_exec($curl);
   $err = curl_error($curl);
   curl_close($curl);
-
+  
   if ($err) {
     echo "cURL Error #:" . $err;
   }
   else {
     $json = json_decode($response, true);
-    //print_r($json);
     $length = $json['pagination']['object_count'];
-    //print_r($length);die();
-    $html = '<div class="container m-t-md"><br><h2 style="margin-left: 40%;">Upcoming Events!</h2><br><br><div class="row">';
-    for($i=0; $i < $length; $i++) {
+
+    for ($i = 0; $i < $length; $i++) {
       $event = $json['events'][$i];
-      //print_r($event);die();
-      $html .= '<div class="col-xs-12 col-md-4">';
-      $html .= '<article class="card animated fadeInLeft">';
-      $html .= '<img class="card-img-top img-responsive" src="'. $event['logo']['url'] .'" alt="Deer in nature" />';
-      $html .= '<div class="card-block">';
-      $html .= '<h4 class="card-title">'. $event['name']['text'] .'</h4>';
-      $html .= '<h6 class="text-muted">' . $event['venue']['address']['address_1'] .' '.$event['venue']['address']['city'].'</h6>';
-      $date = explode("T",$event['start']['local']);
-      $html .= '<h6 class="text-muted">Date: ' . $date[0] .'</h6>';
-      $html .= '<p class="card-text">'. $event['description']['text'] .'</p>';
-      $html .= '<a href="'. $event['url'] .'" class="btn btn-primary"> Read more </a>';
-      $html .= '</div></article></div>';
+      $date = explode("T", $event['start']['local']);
+      $eventid = $event['id'];
+      
+      $query = db_select('field_data_field_event_id', 'dfei');
+      $query->fields('dfei', array('field_event_id_value'));
+      $query->condition('field_event_id_value', $eventid);
+      $event_exist = $query->execute()->fetchAll();
+      
+      if (!empty($event_exist) && count($event_exist) > 0) {
+        //Need to Update existing Node with same Event ID
+      } else {
+        $curls = curl_init();
+
+        curl_setopt_array($curls, array(
+          CURLOPT_URL => "https://www.eventbriteapi.com/v3/events/" . $eventid . "/ticket_classes/?token=" . $token . "",
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => "",
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 30,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => "GET",
+          CURLOPT_HTTPHEADER => array(
+            "cache-control: no-cache",
+          ),
+        ));
+
+        $res = curl_exec($curls);
+        $error = curl_error($curls);
+
+        curl_close($curls);
+        if ($error) {
+          echo "cURL Error #:" . $error;
+        } else {
+          $tickets = json_decode($res, true);
+          
+          $len = $tickets['pagination']['object_count'];
+          for ($j = 0; $j < $len; $j++) {
+            $ticket = $tickets['ticket_classes'][$j];
+            $ticket_id = $ticket['id'];
+            $ticket_name = $ticket['name'];
+            $ticket_total = $ticket['quantity_total'];
+            $ticket_sold = $ticket['quantity_sold'];
+            $ticket_available = $ticket_total - $ticket_sold;
+            $ticket_price = (empty($ticket['actual_cost']['display']) ? 'Free' : $ticket['actual_cost']['display']);
+          }
+        }
+        
+        //Create Drupal Node
+        $node = new stdClass();  // Create a new node object
+        $node->type = 'eventbrite_event';  // Content type
+        $node->language = LANGUAGE_NONE;  // Or e.g. 'en' if locale is enabled
+        node_object_prepare($node);  //Set some default values
+
+        $node->title = $event['name']['text'];
+        $eventurl = str_replace(" ", "-", $event['name']['text']);
+        $node->body[$node->language][0]['value'] = $event['description']['text'];
+        $node->body[$node->language][0]['summary'] = text_summary($event['description']['text']);
+        $node->body[$node->language][0]['format'] = 'full_html';
+
+        $node->status = 1;   // (1 or 0): published or unpublished
+        $node->promote = 0;  // (1 or 0): promoted to front page or not
+        $node->sticky = 0;  // (1 or 0): sticky at top of lists or not
+        $node->comment = 0;  // 2 = comments open, 1 = comments closed, 0 = comments hidden
+        $node->uid = 1;
+        $node->created = strtotime(time());
+
+        $node->field_eventbrite_event_address[LANGUAGE_NONE][0]['value'] = $event['venue']['address']['address_1'];
+        $node->field_event_id[LANGUAGE_NONE][0]['value'] = $event['id'];
+        $node->field_eventbrite_event_url[LANGUAGE_NONE][0]['value'] = $event['url'];
+        $node->field_ticket_type[LANGUAGE_NONE][0]['value'] = $ticket_name;
+        $node->field_ticket_price[LANGUAGE_NONE][0]['value'] = $ticket_price;
+        $node->field_ticket_available[LANGUAGE_NONE][0]['value'] = $ticket_available;
+        $node->field_event_date[LANGUAGE_NONE][0]['value'] = $date[0];
+        $node->field_eventbrite_event_image[LANGUAGE_NONE][0]['value'] = $event['logo']['url'];
+
+        $path = 'eventbrite/event-' . $eventurl;
+        $node->path = array('alias' => $path);
+
+        node_save($node);
+      }
     }
-    $html .= '</div></div>';
-    print $html;
+
   }
+  global $base_url;
+  drupal_goto($base_url . '/eventbrite-view');
 }
