@@ -132,10 +132,11 @@ function eventbrite_feature_views_default_views() {
   $handler->display->display_options['fields']['php']['use_php_setup'] = 0;
   $handler->display->display_options['fields']['php']['php_output'] = '<?php
 if($row->field_total_ticket_available > 0){
-echo \'<a href="$row->field_eventbrite_event_url " class="btn btn-primary"> Buy Now</a>\';
+echo \'<a href="\'.$row->field_eventbrite_event_url .\' " class="btn btn-primary"> Buy Now</a>\';
 }
 else{
-echo \'<a href="$row->field_eventbrite_event_url " class="btn btn-primary disabled"> Buy Now</a>\';}
+echo \'<a href="\'.$row->field_eventbrite_event_url.\' " class="btn btn-primary disabled"> Buy Now</a>\';
+}
 ?>
 ';
   $handler->display->display_options['fields']['php']['use_php_click_sortable'] = '0';

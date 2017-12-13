@@ -49,7 +49,7 @@ function eventbrite_api_ui() {
 
   $token = variable_get('eventbrite_token');
   $organizer = variable_get('eventbrite_org_id');
-  
+
   $curl = curl_init();
   curl_setopt_array($curl, array(
     CURLOPT_URL => EVENTBRITE_URL.$token."&organizer.id=".$organizer."&expand=venue",
@@ -67,7 +67,7 @@ function eventbrite_api_ui() {
   $response = curl_exec($curl);
   $err = curl_error($curl);
   curl_close($curl);
-  
+
   if ($err) {
     echo "cURL Error #:" . $err;
   }
@@ -78,56 +78,65 @@ function eventbrite_api_ui() {
     for ($i = 0; $i < $length; $i++) {
       $event = $json['events'][$i];
       $date = explode("T", $event['start']['local']);
+      // $eventid = '41102826661';
       $eventid = $event['id'];
-      
+
       $query = db_select('field_data_field_event_id', 'dfei');
       $query->fields('dfei', array('field_event_id_value'));
       $query->condition('field_event_id_value', $eventid);
-      $event_exist = $query->execute()->fetchAll();
-      
-      if (!empty($event_exist) && count($event_exist) > 0) {
-        //Need to Update existing Node with same Event ID
+      $event_exist = $query->execute()->fetchAssoc();
+      $curls = curl_init();
+
+
+      curl_setopt_array($curls, array(
+        CURLOPT_URL => "https://www.eventbriteapi.com/v3/events/" . $eventid . "/ticket_classes/?token=" . $token . "",
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_ENCODING => "",
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST => "GET",
+        CURLOPT_HTTPHEADER => array(
+          "cache-control: no-cache",
+        ),
+      ));
+
+      $res = curl_exec($curls);
+      $error = curl_error($curls);
+
+      curl_close($curls);
+      if ($error) {
+        echo "cURL Error #:" . $error;
       } else {
-        $curls = curl_init();
+        $tickets = json_decode($res, true);
 
-        curl_setopt_array($curls, array(
-          CURLOPT_URL => "https://www.eventbriteapi.com/v3/events/" . $eventid . "/ticket_classes/?token=" . $token . "",
-          CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_ENCODING => "",
-          CURLOPT_MAXREDIRS => 10,
-          CURLOPT_TIMEOUT => 30,
-          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-          CURLOPT_CUSTOMREQUEST => "GET",
-          CURLOPT_HTTPHEADER => array(
-            "cache-control: no-cache",
-          ),
-        ));
-
-        $res = curl_exec($curls);
-        $error = curl_error($curls);
-
-        curl_close($curls);
-        if ($error) {
-          echo "cURL Error #:" . $error;
-        } else {
-          $tickets = json_decode($res, true);
-          
-          $len = $tickets['pagination']['object_count'];
-          $tick_avalable = '';
-          $total_ticket_available = 0;
-          for ($j = 0; $j < $len; $j++) {
-            $ticket = $tickets['ticket_classes'][$j];
-            $ticket_id = $ticket['id'];
-            $ticket_name = $ticket['name'];
-            $ticket_total = $ticket['quantity_total'];
-            $ticket_sold = $ticket['quantity_sold'];
-            $ticket_available = $ticket_total - $ticket_sold;
-            $ticket_price = (empty($ticket['actual_cost']['display']) ? 'Free' : $ticket['actual_cost']['display']);
-            $tick_avalable .= 'Ticket Type: ' . $ticket_name . ', Available: ' . $ticket_available . ', Price: ' . $ticket_price . PHP_EOL;
-            $total_ticket_available = $total_ticket_available + $ticket_available;
-          }
+        $len = $tickets['pagination']['object_count'];
+        $tick_avalable = '';
+        $total_ticket_available = 0;
+        for ($j = 0; $j < $len; $j++) {
+          $ticket = $tickets['ticket_classes'][$j];
+          $ticket_id = $ticket['id'];
+          $ticket_name = $ticket['name'];
+          $ticket_total = $ticket['quantity_total'];
+          $ticket_sold = $ticket['quantity_sold'];
+          $ticket_available = $ticket_total - $ticket_sold;
+          $ticket_price = (empty($ticket['actual_cost']['display']) ? 'Free' : $ticket['actual_cost']['display']);
+          $tick_avalable .= 'Ticket Type: ' . $ticket_name . ', Available: ' . $ticket_available . ', Price: ' . $ticket_price . PHP_EOL;
+          $total_ticket_available = $total_ticket_available + $ticket_available;
         }
-        
+      }
+      if (!empty($event_exist) && count($event_exist) > 0) {
+        $query2 = db_select('field_data_field_event_id', 'dfei');
+        $query2->fields('dfei', array('entity_id'));
+        $query2->condition('field_event_id_value', $eventid);
+        $nid = $query2->execute()->fetchField();
+        //Need to Update existing Node with same Event ID
+        $node = node_load($nid); // $nid is the function's parameter
+        $node->field_ticket_available[$node->language][0]['value'] = $tick_avalable;
+        $node->field_total_ticket_available[$node->language][0]['value'] = $total_ticket_available;
+        $node->field_total_ticket_available[$node->language][0]['safe_value'] = $total_ticket_available;
+        node_save($node);
+      } else {
         //Create Drupal Node
         $node = new stdClass();  // Create a new node object
         $node->type = 'eventbrite_event';  // Content type
@@ -156,7 +165,7 @@ function eventbrite_api_ui() {
         $node->field_ticket_available[LANGUAGE_NONE][0]['value'] = $tick_avalable;
         $node->field_event_date[LANGUAGE_NONE][0]['value'] = $date[0];
         $node->field_eventbrite_event_image[LANGUAGE_NONE][0]['value'] = $event['logo']['url'];
-        
+
         $path = 'eventbrite/event-' . $eventurl;
         $node->path = array('alias' => $path);
 
