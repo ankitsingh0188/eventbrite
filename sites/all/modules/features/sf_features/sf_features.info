@@ -1,0 +1,20 @@
+name = SF Features
+core = 7.x
+package = Features
+dependencies[] = entity
+dependencies[] = features
+dependencies[] = menu
+dependencies[] = salesforce_mapping
+features[features_api][] = api:2
+features[menu_custom][] = menu-sf-menu
+features[menu_custom][] = user-menu
+features[node][] = webform
+features[salesforce_mapping][] = contacts
+features_exclude[menu_links][menu-sf-menu_create-sf-leads:node/1] = menu-sf-menu_create-sf-leads:node/1
+features_exclude[menu_links][menu-sf-menu_view-sf-leads:https://ap5.lightning.force.com/one/one.app?source=aloha#/sObject/Lead/list?filterName=00B7F000007YvjYUAS] = menu-sf-menu_view-sf-leads:https://ap5.lightning.force.com/one/one.app?source=aloha#/sObject/Lead/list?filterName=00B7F000007YvjYUAS
+features_exclude[menu_links][menu-sf-menu_create-sf-contacts:admin/people/create] = menu-sf-menu_create-sf-contacts:admin/people/create
+features_exclude[menu_links][menu-sf-menu_view-sf-contacts:https://ap5.lightning.force.com/one/one.app?source=aloha#/sObject/Contact/list?filterName=Recent] = menu-sf-menu_view-sf-contacts:https://ap5.lightning.force.com/one/one.app?source=aloha#/sObject/Contact/list?filterName=Recent
+features_exclude[menu_links][menu-sf-menu_create-eventbrite-ticket:https://www.eventbrite.com/create] = menu-sf-menu_create-eventbrite-ticket:https://www.eventbrite.com/create
+features_exclude[menu_links][menu-sf-menu_view-eventbrite-tickets:eventbrite] = menu-sf-menu_view-eventbrite-tickets:eventbrite
+features_exclude[menu_links][user-menu_user-account:user] = user-menu_user-account:user
+features_exclude[menu_links][user-menu_log-out:user/logout] = user-menu_log-out:user/logout

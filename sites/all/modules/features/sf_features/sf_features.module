@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the SF Features feature.
+ */
+
+include_once 'sf_features.features.inc';
