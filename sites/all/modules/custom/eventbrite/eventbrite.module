@@ -114,6 +114,7 @@ function eventbrite_api_ui() {
           
           $len = $tickets['pagination']['object_count'];
           $tick_avalable = '';
+          $total_ticket_available = 0;
           for ($j = 0; $j < $len; $j++) {
             $ticket = $tickets['ticket_classes'][$j];
             $ticket_id = $ticket['id'];
@@ -123,6 +124,7 @@ function eventbrite_api_ui() {
             $ticket_available = $ticket_total - $ticket_sold;
             $ticket_price = (empty($ticket['actual_cost']['display']) ? 'Free' : $ticket['actual_cost']['display']);
             $tick_avalable .= 'Ticket Type: ' . $ticket_name . ', Available: ' . $ticket_available . ', Price: ' . $ticket_price . PHP_EOL;
+            $total_ticket_available = $total_ticket_available + $ticket_available;
           }
         }
         
@@ -149,11 +151,12 @@ function eventbrite_api_ui() {
         $node->field_event_id[LANGUAGE_NONE][0]['value'] = $event['id'];
         $node->field_eventbrite_event_url[LANGUAGE_NONE][0]['value'] = $event['url'];
         $node->field_ticket_type[LANGUAGE_NONE][0]['value'] = $ticket_name;
+        $node->field_total_ticket_available[LANGUAGE_NONE][0]['value'] = $total_ticket_available;
         $node->field_ticket_price[LANGUAGE_NONE][0]['value'] = $ticket_price;
         $node->field_ticket_available[LANGUAGE_NONE][0]['value'] = $tick_avalable;
         $node->field_event_date[LANGUAGE_NONE][0]['value'] = $date[0];
         $node->field_eventbrite_event_image[LANGUAGE_NONE][0]['value'] = $event['logo']['url'];
-
+        
         $path = 'eventbrite/event-' . $eventurl;
         $node->path = array('alias' => $path);
 
